@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Budget Flight Finder - Google Flights Data</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .header .badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            margin-top: 10px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            margin-bottom: 20px;
+        }
+
+        .search-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+            font-size: 0.9em;
+        }
+
+        .form-group input {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .search-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 32px;
+            font-size: 1.1em;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            grid-column: 1 / -1;
+            position: relative;
+        }
+
+        .search-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+
+        .search-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading .spinner {
+            display: block;
+        }
+
+        .results {
+            display: none;
+        }
+
+        .results.show {
+            display: block;
+        }
+
+        .summary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+        }
+
+        .summary h2 {
+            margin-bottom: 15px;
+            font-size: 1.8em;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .summary-item {
+            background: rgba(255,255,255,0.2);
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        .summary-item .label {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+
+        .summary-item .value {
+            font-size: 1.8em;
+            font-weight: bold;
+        }
+
+        .api-status {
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.95em;
+        }
+
+        .api-status.success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #22c55e;
+        }
+
+        .api-status.error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #ef4444;
+        }
+
+        .api-status.cached {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #3b82f6;
+        }
+
+        .chart-container {
+            margin: 30px 0;
+            position: relative;
+            height: 400px;
+        }
+
+        .deals-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .deal-card {
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 20px;
+            transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+
+        .deal-card:hover {
+            transform: translateY(-4px);
+            border-color: #667eea;
+            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.2);
+        }
+
+        .deal-card.best-deal {
+            border-color: #4ade80;
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+        }
+
+        .deal-card.best-deal .badge {
+            background: #22c55e;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: 600;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+
+        .deal-card .month {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .deal-card .price {
+            font-size: 2.2em;
+            font-weight: bold;
+            color: #667eea;
+            margin: 10px 0;
+        }
+
+        .deal-card .savings {
+            color: #22c55e;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+
+        .deal-card .details {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e0e0e0;
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .deal-card .detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .over-budget {
+            opacity: 0.6;
+        }
+
+        .over-budget .price {
+            color: #ef4444;
+        }
+
+        .specific-deals-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 20px;
+        }
+
+        .specific-deal {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border: 2px solid #0ea5e9;
+            border-radius: 12px;
+            padding: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .specific-deal:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(14, 165, 233, 0.3);
+        }
+
+        .specific-deal.top-deal {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-color: #f59e0b;
+        }
+
+        .specific-deal .rank {
+            display: inline-block;
+            background: #0ea5e9;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .specific-deal.top-deal .rank {
+            background: #f59e0b;
+        }
+
+        .specific-deal .dates {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #0c4a6e;
+            margin-bottom: 8px;
+        }
+
+        .specific-deal .price-large {
+            font-size: 2em;
+            font-weight: bold;
+            color: #0284c7;
+            margin: 12px 0;
+        }
+
+        .specific-deal.top-deal .price-large {
+            color: #d97706;
+        }
+
+        .specific-deal .deal-details {
+            display: grid;
+            gap: 8px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(0,0,0,0.1);
+            font-size: 0.9em;
+        }
+
+        .specific-deal .deal-detail-row {
+            display: flex;
+            justify-content: space-between;
+            color: #334155;
+        }
+
+        .error-message {
+            padding: 20px;
+            background: #fee2e2;
+            border: 2px solid #ef4444;
+            border-radius: 12px;
+            color: #991b1b;
+            margin-top: 20px;
+        }
+
+        .error-message h3 {
+            margin-bottom: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+            
+            .search-form {
+                grid-template-columns: 1fr;
+            }
+
+            .chart-container {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✈️ Budget Flight Finder</h1>
+            <p>Real Google Flights data • Find the cheapest months to fly</p>
+            <div class="badge">🔴 LIVE • Powered by SerpApi</div>
+        </div>
+
+        <div class="card">
+            <form class="search-form" id="searchForm">
+                <div class="form-group">
+                    <label for="origin">From (Airport Code)</label>
+                    <input type="text" id="origin" placeholder="e.g., DTW" maxlength="3" value="LAX" required>
+                </div>
+                <div class="form-group">
+                    <label for="destination">To (Airport Code)</label>
+                    <input type="text" id="destination" placeholder="e.g., MCO" maxlength="3" value="JFK" required>
+                </div>
+                <div class="form-group">
+                    <label for="budget">Your Budget ($)</label>
+                    <input type="number" id="budget" placeholder="e.g., 500" min="0" value="300" required>
+                </div>
+                <div class="form-group">
+                    <label for="tripDuration">Trip Duration (days)</label>
+                    <input type="number" id="tripDuration" placeholder="e.g., 5" min="1" max="30" value="5" required>
+                </div>
+                <button type="submit" class="search-btn" id="searchBtn">
+                    <span class="btn-text">Find Cheapest Flights</span>
+                    <div class="spinner"></div>
+                </button>
+            </form>
+        </div>
+
+        <div class="results" id="results">
+            <div class="card">
+                <div id="apiStatus"></div>
+                <div class="summary" id="summary"></div>
+                
+                <h2 style="margin-bottom: 20px; color: #333;">Price Trends</h2>
+                <div class="chart-container">
+                    <canvas id="priceChart"></canvas>
+                </div>
+
+                <h2 style="margin: 40px 0 20px; color: #333;">Cheapest ${tripDuration}-Day Trips</h2>
+                <div id="specificDeals" style="margin-bottom: 40px;"></div>
+
+                <h2 style="margin: 40px 0 20px; color: #333;">Best Deals by Month</h2>
+                <div class="deals-grid" id="dealsGrid"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3001/api';
+        let priceChart = null;
+
+        // Helper function to format duration (e.g., "450" minutes -> "7h 30m")
+        function formatDuration(minutes) {
+            if (!minutes) return 'N/A';
+            const hours = Math.floor(minutes / 60);
+            const mins = minutes % 60;
+            return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+        }
+
+        async function checkAPIHealth() {
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                const data = await response.json();
+                console.log('✅ API Status:', data);
+                return true;
+            } catch (error) {
+                console.error('❌ API not running:', error);
+                return false;
+            }
+        }
+
+        document.getElementById('searchForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const origin = document.getElementById('origin').value.toUpperCase();
+            const destination = document.getElementById('destination').value.toUpperCase();
+            const budget = parseInt(document.getElementById('budget').value);
+            const tripDuration = parseInt(document.getElementById('tripDuration').value);
+            
+            const searchBtn = document.getElementById('searchBtn');
+            const btnText = searchBtn.querySelector('.btn-text');
+            
+            searchBtn.disabled = true;
+            searchBtn.classList.add('loading');
+            btnText.textContent = 'Searching Google Flights... (this may take 30-60 seconds)';
+            
+            try {
+                const apiHealthy = await checkAPIHealth();
+                if (!apiHealthy) {
+                    throw new Error('Backend API is not running. Please start the server!');
+                }
+
+                const response = await fetch(
+                    `${API_URL}/flights/price-calendar?origin=${origin}&destination=${destination}&tripDuration=${tripDuration}`
+                );
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to fetch flight data');
+                }
+                
+                const data = await response.json();
+                
+                // Show results section first
+                document.getElementById('results').classList.add('show');
+                
+                const apiStatusHTML = data.cached 
+                    ? `<div class="api-status cached">📦 Cached data (refreshes every 6 hours)</div>`
+                    : `<div class="api-status success">✅ Fresh data from Google Flights (via SerpApi)</div>`;
+                document.getElementById('apiStatus').innerHTML = apiStatusHTML;
+                
+                const flightData = Object.values(data.pricesByMonth)
+                    .filter(m => m.avgPrice > 0)
+                    .map(month => ({
+                        month: month.month,
+                        price: month.avgPrice,
+                        minPrice: month.minPrice,
+                        maxPrice: month.maxPrice,
+                        flightCount: month.flightCount,
+                        topAirline: month.topAirline,
+                        hasNonstop: month.hasNonstop,
+                        nonstopPercent: month.nonstopPercent
+                    }));
+                
+                if (flightData.length === 0) {
+                    throw new Error('No flight data available for this route. Try a popular route like LAX-JFK or DTW-MCO.');
+                }
+
+                // Display specific date deals
+                if (data.cheapestTrips && data.cheapestTrips.length > 0) {
+                    const specificDealsHTML = `
+                        <div class="specific-deals-grid">
+                            ${data.cheapestTrips.slice(0, 6).map((trip, index) => {
+                                const isTopDeal = index === 0;
+                                const departDate = new Date(trip.departureDate);
+                                const returnDate = new Date(trip.returnDate);
+                                const dateFormat = { month: 'short', day: 'numeric', year: 'numeric' };
+                                const dayFormat = { weekday: 'short' };
+                                
+                                return `
+                                    <div class="specific-deal ${isTopDeal ? 'top-deal' : ''}">
+                                        <span class="rank">${isTopDeal ? '🏆 BEST DEAL' : `#${index + 1} Deal`}</span>
+                                        <div class="dates">
+                                            ${departDate.toLocaleDateString('en-US', dateFormat)} → ${returnDate.toLocaleDateString('en-US', dateFormat)}
+                                        </div>
+                                        <div style="font-size: 0.9em; color: #64748b; margin-top: 4px;">
+                                            ${departDate.toLocaleDateString('en-US', dayFormat)} → ${returnDate.toLocaleDateString('en-US', dayFormat)}
+                                        </div>
+                                        <div class="price-large">$${trip.price}</div>
+                                        <div style="color: ${trip.price <= budget ? '#22c55e' : '#ef4444'}; font-weight: 600; margin-top: 8px;">
+                                            ${trip.price <= budget ? '✓ Within budget' : `$${trip.price - budget} over budget`}
+                                        </div>
+                                        <div class="deal-details">
+                                            <div class="deal-detail-row">
+                                                <span>Duration:</span>
+                                                <strong>${tripDuration} days</strong>
+                                            </div>
+                                            ${trip.departureTime ? `
+                                                <div class="deal-detail-row">
+                                                    <span>Departs:</span>
+                                                    <strong>${trip.departureTime}</strong>
+                                                </div>
+                                            ` : ''}
+                                            ${trip.arrivalTime ? `
+                                                <div class="deal-detail-row">
+                                                    <span>Returns:</span>
+                                                    <strong>${trip.arrivalTime}</strong>
+                                                </div>
+                                            ` : ''}
+                                            ${trip.airline ? `
+                                                <div class="deal-detail-row">
+                                                    <span>Airline:</span>
+                                                    <strong>${trip.airline}</strong>
+                                                </div>
+                                            ` : ''}
+                                            ${trip.stops !== undefined ? `
+                                                <div class="deal-detail-row">
+                                                    <span>Stops:</span>
+                                                    <strong>${trip.stops === 0 ? 'Nonstop ✈️' : `${trip.stops} stop${trip.stops > 1 ? 's' : ''}`}</strong>
+                                                </div>
+                                            ` : ''}
+                                            ${trip.totalDuration ? `
+                                                <div class="deal-detail-row">
+                                                    <span>Flight Time:</span>
+                                                    <strong>${formatDuration(trip.totalDuration)}</strong>
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `;
+                    document.getElementById('specificDeals').innerHTML = specificDealsHTML;
+                } else {
+                    document.getElementById('specificDeals').innerHTML = `
+                        <div style="padding: 20px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; text-align: center;">
+                            <p style="color: #92400e;">Specific date deals will appear here once the search completes.</p>
+                        </div>
+                    `;
+                }
+                
+                const sortedByPrice = [...flightData].sort((a, b) => a.price - b.price);
+                const cheapest = sortedByPrice[0];
+                const mostExpensive = sortedByPrice[sortedByPrice.length - 1];
+                const withinBudget = flightData.filter(f => f.price <= budget).length;
+                
+                const summaryHTML = `
+                    <h2>Flight Search: ${origin} → ${destination}</h2>
+                    <div class="summary-grid">
+                        <div class="summary-item">
+                            <div class="label">Your Budget</div>
+                            <div class="value">$${budget}</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="label">Cheapest Month</div>
+                            <div class="value">${cheapest.month}</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="label">Lowest Price</div>
+                            <div class="value">$${cheapest.price}</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="label">Months Under Budget</div>
+                            <div class="value">${withinBudget}/${flightData.length}</div>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('summary').innerHTML = summaryHTML;
+                
+                const dealsHTML = flightData.map((flight) => {
+                    const isWithinBudget = flight.price <= budget;
+                    const isCheapest = flight.month === cheapest.month;
+                    const savings = mostExpensive.price - flight.price;
+                    
+                    return `
+                        <div class="deal-card ${isCheapest ? 'best-deal' : ''} ${!isWithinBudget ? 'over-budget' : ''}">
+                            ${isCheapest ? '<span class="badge">BEST DEAL</span>' : ''}
+                            <div class="month">${flight.month}</div>
+                            <div class="price">$${flight.price}</div>
+                            ${isWithinBudget ? 
+                                `<div class="savings">✓ Within budget • Save $${savings}</div>` : 
+                                `<div style="color: #ef4444; font-weight: 600;">Over budget by $${flight.price - budget}</div>`
+                            }
+                            <div class="details">
+                                ${flight.topAirline ? `
+                                    <div class="detail-row">
+                                        <span>Top Airline:</span>
+                                        <strong>${flight.topAirline}</strong>
+                                    </div>
+                                ` : ''}
+                                ${flight.hasNonstop ? `
+                                    <div class="detail-row">
+                                        <span>Nonstop:</span>
+                                        <strong style="color: #22c55e;">${flight.nonstopPercent}% available ✈️</strong>
+                                    </div>
+                                ` : `
+                                    <div class="detail-row">
+                                        <span>Stops:</span>
+                                        <strong>1+ stops</strong>
+                                    </div>
+                                `}
+                                ${flight.minPrice && flight.maxPrice ? `
+                                    <div class="detail-row">
+                                        <span>Price Range:</span>
+                                        <strong>$${flight.minPrice} - $${flight.maxPrice}</strong>
+                                    </div>
+                                ` : ''}
+                                <div class="detail-row">
+                                    <span>Flights Found:</span>
+                                    <strong>${flight.flightCount}</strong>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                
+                document.getElementById('dealsGrid').innerHTML = dealsHTML;
+                
+                const ctx = document.getElementById('priceChart').getContext('2d');
+                
+                if (priceChart) {
+                    priceChart.destroy();
+                }
+                
+                priceChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: flightData.map(d => d.month),
+                        datasets: [{
+                            label: 'Average Price',
+                            data: flightData.map(d => d.price),
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            pointRadius: 6,
+                            pointHoverRadius: 8,
+                            pointBackgroundColor: '#667eea',
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2
+                        },
+                        {
+                            label: 'Your Budget',
+                            data: Array(flightData.length).fill(budget),
+                            borderColor: '#22c55e',
+                            borderDash: [10, 5],
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            fill: false
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top',
+                                labels: {
+                                    font: { size: 14, weight: '600' },
+                                    padding: 20,
+                                    usePointStyle: true
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                padding: 12,
+                                callbacks: {
+                                    label: function(context) {
+                                        return context.datasetIndex === 0 
+                                            ? 'Price: $' + context.parsed.y 
+                                            : 'Budget: $' + context.parsed.y;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                ticks: { callback: value => '$' + value }
+                            }
+                        }
+                    }
+                });
+                
+                document.getElementById('results').classList.add('show');
+                document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('results').innerHTML = `
+                    <div class="card">
+                        <div class="error-message">
+                            <h3>❌ Error</h3>
+                            <p><strong>${error.message}</strong></p>
+                            ${error.message.includes('Backend') ? `
+                                <p style="margin-top: 15px;">
+                                    <strong>Quick start:</strong><br>
+                                    1. Open Terminal<br>
+                                    2. Go to: cd ~/Desktop/flight-app-serpapi<br>
+                                    3. Run: npm install<br>
+                                    4. Run: npm start<br>
+                                    5. Refresh this page
+                                </p>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+                document.getElementById('results').classList.add('show');
+            } finally {
+                searchBtn.disabled = false;
+                searchBtn.classList.remove('loading');
+                btnText.textContent = 'Find Cheapest Flights';
+            }
+        });
+
+        window.addEventListener('load', checkAPIHealth);
+    </script>
+</body>
+</html>
